@@ -64,3 +64,27 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
+  # GitHub 는 60일 동안 커밋이 없는 저장소의 예약 실행(schedule)을 자동으로 끈다.
+  # 이 저장소는 배포만 하고 커밋이 거의 없어 2026-10-07 에 실제로 꺼졌다(disabled_inactivity).
+  # 마지막 커밋이 30일 넘게 지났으면 빈 커밋을 하나 남겨 '활동 중' 상태를 유지한다.
+  keepalive:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Empty commit if idle for 30+ days
+        run: |
+          last=$(git log -1 --format=%ct)
+          age_days=$(( ($(date +%s) - last) / 86400 ))
+          echo "마지막 커밋 ${age_days}일 전"
+          if [ "$age_days" -ge 30 ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git commit --allow-empty -m "chore: keepalive — 예약 배포가 비활성으로 꺼지지 않게"
+            git push
+          fi
